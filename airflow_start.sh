@@ -1,3 +1,6 @@
+# cd /Users/desmond/airflow
+# ./airflow_start.sh
+
 #!/bin/bash
 
 echo "🚀 啟動 Airflow..."
