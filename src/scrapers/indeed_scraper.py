@@ -3,6 +3,7 @@
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+import undetected_chromedriver as uc
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
@@ -17,6 +18,7 @@ from typing import List, Dict, Optional
 from urllib.parse import urlencode
 import logging
 import re
+import sys
 
 
 class IndeedSeleniumScraper:
@@ -73,56 +75,65 @@ class IndeedSeleniumScraper:
         self._setup_driver()
     
     def _setup_driver(self):
-        """設定 Selenium WebDriver"""
+        """設定 WebDriver - 完整反檢測版本"""
         try:
-            chrome_options = Options()
+            import undetected_chromedriver as uc
             
-            # 無頭模式 (背景執行,不顯示瀏覽器視窗)
-            if self.config.get('headless', True):
-                chrome_options.add_argument('--headless')
+            print("🔧 開始設定 WebDriver (完整反檢測)...", flush=True)
+            sys.stdout.flush()
             
-            # 反爬偵測設定
-            chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-            chrome_options.add_experimental_option('useAutomationExtension', False)
+            options = uc.ChromeOptions()
             
-            # 性能優化
-            chrome_options.add_argument('--disable-gpu')
-            chrome_options.add_argument('--no-sandbox')
-            chrome_options.add_argument('--disable-dev-shm-usage')
+            # 基本設定
+            headless = self.config.get('headless', True)
+            if headless:
+                options.add_argument('--headless=new')
             
-            # User-Agent (模擬真實瀏覽器)
-            chrome_options.add_argument(
-                'user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
-                'AppleWebKit/537.36 (KHTML, like Gecko) '
-                'Chrome/120.0.0.0 Safari/537.36'
+            options.add_argument('--disable-gpu')
+            options.add_argument('--no-sandbox')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--window-size=1920,1080')
+            
+            # 🎯 反檢測增強設定
+            options.add_argument('--disable-blink-features=AutomationControlled')
+            options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            options.add_experimental_option('useAutomationExtension', False)
+            
+            # 模擬真實用戶
+            prefs = {
+                "credentials_enable_service": False,
+                "profile.password_manager_enabled": False,
+                "profile.default_content_setting_values.notifications": 2
+            }
+            options.add_experimental_option("prefs", prefs)
+            
+            print("🚀 正在啟動 Chrome (完整反檢測模式)...", flush=True)
+            sys.stdout.flush()
+            
+            self.driver = uc.Chrome(
+                options=options,
+                version_main=None,
+                use_subprocess=True,
+                headless=headless
             )
             
-            # 視窗大小
-            chrome_options.add_argument('--window-size=1920,1080')
-            
-            # 自動安裝並設定 ChromeDriver
-            service = Service(ChromeDriverManager().install())
-            self.driver = webdriver.Chrome(service=service, options=chrome_options)
-            
-            # 隱藏 WebDriver 標記
-            self.driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-                'source': '''
-                    Object.defineProperty(navigator, 'webdriver', {
-                        get: () => undefined
-                    })
-                '''
+            # 執行額外的反檢測腳本
+            self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+                "userAgent": 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             })
             
-            # 設定隱式等待
+            self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            
             self.driver.implicitly_wait(10)
             
-            self.logger.info("✅ Selenium WebDriver 初始化成功")
+            print("✅ 完整反檢測 ChromeDriver 初始化成功", flush=True)
+            sys.stdout.flush()
             
         except Exception as e:
-            self.logger.error(f"❌ WebDriver 初始化失敗: {str(e)}")
+            print(f"❌ WebDriver 初始化失敗: {str(e)}", flush=True)
+            sys.stdout.flush()
             raise
-    
+
     def _apply_rate_limiting(self):
         """應用延遲限制 (模擬人類行為)"""
         delay_range = self.config.get('delay_range', (3, 6))
@@ -385,6 +396,8 @@ class IndeedSeleniumScraper:
         Returns:
             職缺列表
         """
+        print("🚀 開始使用 Selenium 爬取 Indeed 職缺...", flush=True)
+        sys.stdout.flush()
         self.logger.info("🚀 開始使用 Selenium 爬取 Indeed 職缺...")
         
         search_keywords = self.config.get('search_keywords', ['data engineer'])

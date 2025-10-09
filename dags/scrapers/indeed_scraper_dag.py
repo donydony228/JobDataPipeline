@@ -49,36 +49,37 @@ def setup_scraper_config(**context):
         'batch_id': batch_id,
         'execution_date': execution_date,
         
-        # 爬取目標 (Indeed 第一階段保守設定)
-        'target_jobs': 50,  # 先測試 50 個
-        'max_pages': 30,     # 最多 30 頁
+        # 爬取目標
+        'target_jobs': 5,
+        'max_pages': 1,
         
         # 搜尋條件
         'search_keywords': [
             'data engineer',
-            'data scientist',
-            'data analyst',
-            'machine learning engineer',
-            'AI engineer',
-            'business intelligence analyst',
+            # 'data scientist',
+            # 'machine learning engineer',
+            # 'data analyst',
+            # 'analytics engineer',
+            'backend engineer data'
         ],
-        # 'locations': [
-        #     'San Francisco, CA',
-        #     'New York, NY'
-        # ],
-
-        'fromage': 1,  # 只要過去24小時的
-        'job_types': ['internship', 'entry_level'],
-        'remote_only': False,
+        # 'locations': [],  # 不設定 = 不限地區
+        # 或者設定為空列表/空字串也可以
+        'locations': [''],  # 空字串 = 不限地區 (Indeed 會顯示所有地區)
+        
+        # 進階篩選
+        'fromage': 3,  # 過去3天
+        'job_types': ['entry_level', 'mid_level'],  # 入門和中階
+        # 'remote_only': False,  # 不限遠端
         
         # 反爬設定
-        'delay_range': (3, 6),  # Indeed 延遲稍長
+        'delay_range': (4, 7),  # Selenium 可以稍快一點
+        'headless': False,  # 背景執行
         'request_timeout': 30,
         'max_retries': 3,
-        'scrape_details': False,  # 第一階段不爬詳細頁
+        'scrape_details': False,
         
         # 品質控制
-        'min_required_fields': ['job_title', 'company_name', 'location', 'job_url'],
+        'min_required_fields': ['job_title', 'company_name', 'job_url'],
         'skip_duplicates': True
     }
     
@@ -86,15 +87,24 @@ def setup_scraper_config(**context):
     print(f"   批次 ID: {config['batch_id']}")
     print(f"   目標職缺: {config['target_jobs']}")
     print(f"   搜尋關鍵字: {len(config['search_keywords'])} 個")
-    print(f"   目標城市: {len(config['locations'])} 個")
+    
+    # 地區資訊 (可選)
+    locations = config.get('locations', [''])
+    if locations and locations[0]:
+        print(f"   目標城市: {len(locations)} 個 - {', '.join(locations[:3])}")
+    else:
+        print(f"   目標城市: 不限地區 (全美國)")
+    
+    print(f"   時間範圍: 過去 {config['fromage']} 天")
+    print(f"   職位類型: {config['job_types']}")
     
     context['task_instance'].xcom_push(key='scraper_config', value=config)
     return f"Config ready for batch {config['batch_id']}"
 
 
 def scrape_indeed_jobs(**context):
-    """執行 Indeed 職缺爬蟲"""
-    from scrapers.indeed_scraper import IndeedScraper
+    """執行 Indeed 職缺爬蟲 - 使用 Selenium 版本"""
+    from scrapers.indeed_scraper import IndeedSeleniumScraper
     
     # 取得配置
     config = context['task_instance'].xcom_pull(
@@ -102,11 +112,12 @@ def scrape_indeed_jobs(**context):
         key='scraper_config'
     )
     
-    print(f"🚀 開始爬取 Indeed 職缺...")
+    print(f"🚀 開始爬取 Indeed 職缺 (Selenium)...")
     print(f"   批次 ID: {config['batch_id']}")
+    print(f"   模式: 無頭瀏覽器")
     
     try:
-        scraper = IndeedScraper(config)
+        scraper = IndeedSeleniumScraper(config)
         jobs_data = scraper.scrape_jobs()
         
         # 統計結果
@@ -123,7 +134,8 @@ def scrape_indeed_jobs(**context):
             'jobs_data': jobs_data,
             'total_jobs': total_jobs,
             'success_rate': success_rate,
-            'scrape_timestamp': datetime.now().isoformat()
+            'scrape_timestamp': datetime.now().isoformat(),
+            'scraper_type': 'selenium'
         }
         
         context['task_instance'].xcom_push(key='scrape_result', value=result)
@@ -131,6 +143,8 @@ def scrape_indeed_jobs(**context):
         
     except Exception as e:
         print(f"❌ 爬取失敗: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise
 
 
